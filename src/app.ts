@@ -1,62 +1,59 @@
-import { createWriteStream, DelimiterFormatter, FileWriter } from 'io-one';
-import { Exporter, ExportService, Statement } from 'oracle-core';
-import OracleDB from 'oracledb';
-import { User, userModelAttributes } from './user';
+import { merge } from "config-plus"
+import { createWriteStream, CSVFormatter, FileWriter, getPrefix, LogWriter, timeToString, toString } from "export-kit"
+import { createFileLogger } from "logger-core"
+import oracledb from "oracledb"
+import path from "path"
+import { config, environments } from "./config"
+import { ExportService, select, Statement } from "./oracle-core"
+import { User, userModel } from "./user"
 
-const DB_HOST = '';
-const DB_PORT = 1525;
-const DB_SRV_NAME = '';
-const DB_USR = '';
-const DB_PWD = '#55';
-const USE_SERVICE = true;
+const cfg = merge(config, process.env, environments, process.env.ENV)
 
 export class QueryBuilder {
-  build = (): Promise<Statement> => Promise.resolve({
-    query: `
-      SELECT * FROM users WHERE userid = :1
-    `,
-    params: ['0001']
-  })
-}
-
-async function main() {
-  const dir = './dest_dir/';
-  const writeStream = createWriteStream(dir, 'export.csv');
-  const writer = new FileWriter(writeStream);
-  const queryBuilder = new QueryBuilder();
-  const formatter = new DelimiterFormatter('|', userModelAttributes);
-  let connection: any;
-  try {
-    connection = await OracleDB.getConnection({
-      user: DB_USR,
-      password: DB_PWD,
-      connectionString: `(
-        DESCRIPTION =
-          (ADDRESS = (PROTOCOL=TCP) (Host=${DB_HOST}) (Port=${DB_PORT}))
-          (CONNECT_DATA = (SERVICE_NAME=${DB_SRV_NAME}))
-      )`
-    });
-    const exporter = USE_SERVICE
-      ? new ExportService<User>(
-          connection,
-          userModelAttributes,
-          queryBuilder,
-          formatter,
-          writer
-        )
-      : new Exporter<User>(
-          connection,
-          userModelAttributes,
-          queryBuilder.build,
-          formatter.format,
-          writer.write,
-          writer.end
-        );
-    await exporter.export();
-  } catch (err) {
-    // handleError(err)
-    console.error(err);
+  constructor() {
+    this.build = this.build.bind(this)
+  }
+  build(cxt?: any): Promise<Statement> {
+    const stmt: Statement = { query: select("PDBADMIN.export_users", userModel) }
+    return Promise.resolve(stmt)
   }
 }
 
-main();
+async function exportData() {
+  const now = new Date()
+  const errorWriter = new LogWriter(getPrefix(cfg.error.prefix, now) + "_" + timeToString(now) + cfg.error.suffix, cfg.error.directory)
+  const logWriter = new LogWriter(getPrefix(cfg.info.prefix, now) + "_" + timeToString(now) + cfg.info.suffix, cfg.info.directory)
+
+  const logger = createFileLogger(cfg.log, errorWriter.write, logWriter.write)
+
+  const dir = cfg.file.path
+  const filename = getPrefix(cfg.file.prefix, now) + "_" + timeToString(now) + ".csv"
+  const writeStream = createWriteStream(dir, filename)
+  const writer = new FileWriter(writeStream)
+  const connection = await oracledb.getConnection(cfg.db)
+  console.log("Connected to Oracle")
+
+  const formatter = new CSVFormatter<User>(userModel, ",")
+  const queryBuilder = new QueryBuilder()
+
+  try {
+    logger.info(`Start to export "${path.join(dir, filename)}" file`)
+    writer.write(cfg.file.header)
+    const exporter = new ExportService<User>(connection, filename, userModel, queryBuilder, formatter, writer, logger.info, 3)
+    const total = await exporter.export()
+
+    console.log(`Export "${path.join(dir, filename)}" file. Total: ${total}`)
+    logger.info(`Export "${path.join(dir, filename)}" file. Total: ${total}`)
+  } catch (err) {
+    logger.error(`Error when export "${path.join(dir, filename)}" file. Details: ${toString(err)}`)
+  } finally {
+    // await connection.close()
+
+    errorWriter.flush()
+    errorWriter.end()
+    logWriter.flush()
+    logWriter.end()
+  }
+}
+
+exportData()

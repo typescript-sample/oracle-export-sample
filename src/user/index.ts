@@ -1,23 +1,41 @@
-import { Attributes } from 'onecore';
+import { Attributes } from "onecore"
 
 export interface User {
-  id: string;
-  userName: string;
-  email?: string;
-  phone?: string;
-  status?: boolean;
-  createdDate?: string;
+  id: string
+  username: string
+  email?: string
+  phone?: string
+  status?: boolean
+  createdDate?: string
 }
-
-export const userModelAttributes: Attributes = {
+/*
+export function toString(v: any): string {
+  return v.toISOString()
+}
+  */
+export const userModel: Attributes = {
   id: {
     key: true,
     length: 11,
-    column: 'id'
   },
-  userName: {
+  username: {
     length: 10,
     required: true,
-    column: 'username'
-  }
-};
+  },
+  email: {
+    length: 31,
+  },
+  phone: {
+    length: 20,
+  },
+  status: {
+    length: 5,
+    type: "boolean",
+  },
+  createdDate: {
+    length: 10,
+    type: "date",
+    column: "createddate",
+    // getString: toString,
+  },
+}
