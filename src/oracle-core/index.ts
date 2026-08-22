@@ -1,5 +1,5 @@
 import { Connection, Metadata, Pool } from "oracledb"
-import { buildToInsertBatch, buildToSave, buildToSaveBatch, param } from "./build"
+import { buildToInsertBatch, buildToSave, buildToSaveBatch, metadata, param } from "./build"
 import { Attribute, Attributes, DB, Statement, StringMap, Transaction } from "./metadata"
 
 export * from "./build"
@@ -301,26 +301,6 @@ export function insertBatch<T>(con: Connection | ((sql: string, args?: any[]) =>
     return execute(con, s.query, s.params)
   }
 }
-export function save<T>(con: Connection | ((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSave(obj, table, attrs, buildParam)
-  if (!s.query) {
-    return Promise.resolve(-1)
-  }
-  if (typeof con === "function") {
-    return con(s.query, s.params)
-  } else {
-    return execute(con, s.query, s.params)
-  }
-}
-
-export function saveBatch<T>(con: Connection | ((statements: Statement[]) => Promise<number>), objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSaveBatch(objs, table, attrs, buildParam)
-  if (typeof con === "function") {
-    return con(s)
-  } else {
-    return executeBatch(con, s)
-  }
-}
 
 export function toArray(arr?: any[]): any[] {
   if (!arr || arr.length === 0) {
@@ -545,6 +525,8 @@ export class OracleBatchInserter<T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class OracleWriter<T> {
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected connection: Connection,
@@ -556,6 +538,9 @@ export class OracleWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(obj: T): Promise<number> {
     if (!obj) {
@@ -565,7 +550,7 @@ export class OracleWriter<T> {
     if (this.map) {
       obj2 = this.map(obj)
     }
-    const stmt = buildToSave(obj2, this.table, this.attributes, this.param)
+    const stmt = buildToSave(obj2, this.table, this.attributes, this.keys, this.version, this.param)
     if (stmt.query) {
       if (this.oneIfSuccess) {
         return execute(this.connection, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
@@ -580,6 +565,8 @@ export class OracleWriter<T> {
 // tslint:disable-next-line:max-classes-per-file
 export class OracleBufferedBatchWriter<T> {
   protected list: T[] = []
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
@@ -592,6 +579,9 @@ export class OracleBufferedBatchWriter<T> {
     this.write = this.write.bind(this)
     this.flush = this.flush.bind(this)
     this.param = buildParam
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(obj: T): Promise<number> {
     if (!obj) {
@@ -614,7 +604,7 @@ export class OracleBufferedBatchWriter<T> {
     if (!this.list || this.list.length === 0) {
       return Promise.resolve(0)
     } else {
-      const stmts = buildToSaveBatch(this.list, this.table, this.attributes, this.param)
+      const stmts = buildToSaveBatch(this.list, this.table, this.attributes, this.keys, this.version, this.param)
       if (stmts && stmts.length > 0) {
         return this.pool.getConnection().then((connection) => {
           return executeBatch(connection, stmts).then((r) => {
@@ -631,6 +621,8 @@ export class OracleBufferedBatchWriter<T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class OracleBatchWriter<T> {
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected connection: Connection,
@@ -641,6 +633,9 @@ export class OracleBatchWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(objs: T[]): Promise<number> {
     if (!objs || objs.length === 0) {
@@ -654,7 +649,7 @@ export class OracleBatchWriter<T> {
         list.push(obj2)
       }
     }
-    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.param)
+    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.keys, this.version, this.param)
     if (stmts && stmts.length > 0) {
       return executeBatch(this.connection, stmts)
     } else {
