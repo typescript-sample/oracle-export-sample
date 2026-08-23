@@ -482,7 +482,7 @@ export function version(attrs: Attributes): Attribute | undefined {
   return undefined
 }
 // tslint:disable-next-line:max-classes-per-file
-export class OracleBatchInserter<T> {
+export class BatchInserter<T> {
   protected version?: string
   protected param?: (i: number) => string
   constructor(
@@ -563,7 +563,7 @@ export class OracleWriter<T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class OracleBufferedBatchWriter<T> {
+export class BufferedBatchWriter<T> {
   protected list: T[] = []
   protected keys: Attribute[]
   protected version?: string
@@ -620,7 +620,7 @@ export class OracleBufferedBatchWriter<T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class OracleBatchWriter<T> {
+export class BatchWriter<T> {
   protected keys: Attribute[]
   protected version?: string
   protected param?: (i: number) => string
