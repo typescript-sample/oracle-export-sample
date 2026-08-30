@@ -16,9 +16,11 @@
   "license": "ISC",
   "dependencies": {
     "config-plus": "^0.1.1",
-    "export-kit": "^0.1.7",
+    "dotenv": "^17.4.2",
+    "export-kit": "^0.2.2",
     "logger-core": "^0.5.2",
     "onecore": "^0.6.2",
+    "oracle-core": "^0.2.0",
     "oracledb": "^7.0.1"
   },
   "devDependencies": {
@@ -27,9 +29,9 @@
     "ts-loader": "^9.6.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^6.0.3",
-    "webpack": "^5.109.2",
-    "webpack-bundle-analyzer": "^5.3.1",
-    "webpack-cli": "^7.2.2",
+    "webpack": "^5.110.1",
+    "webpack-bundle-analyzer": "^5.3.2",
+    "webpack-cli": "^7.2.3",
     "webpack-dev-server": "^6.0.0"
   }
 }

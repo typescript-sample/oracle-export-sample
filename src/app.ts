@@ -1,13 +1,12 @@
 import { merge } from "config-plus"
+import dotenv from "dotenv"
 import { createWriteStream, CSVFormatter, FileWriter, getPrefix, LogWriter, timeToString, toString } from "export-kit"
 import { createFileLogger } from "logger-core"
+import { ExportService, select, Statement } from "oracle-core"
 import oracledb from "oracledb"
 import path from "path"
 import { config, environments } from "./config"
-import { ExportService, select, Statement } from "./oracle-core"
 import { User, userModel } from "./user"
-
-const cfg = merge(config, process.env, environments, process.env.ENV)
 
 export class QueryBuilder {
   constructor() {
@@ -19,22 +18,25 @@ export class QueryBuilder {
   }
 }
 
+dotenv.config()
+const cfg = merge(config, process.env, environments, process.env.ENV)
+
 async function exportData() {
   const now = new Date()
-  const errorWriter = new LogWriter(getPrefix(cfg.error.prefix, now) + "_" + timeToString(now) + cfg.error.suffix, cfg.error.directory)
-  const logWriter = new LogWriter(getPrefix(cfg.info.prefix, now) + "_" + timeToString(now) + cfg.info.suffix, cfg.info.directory)
+  const errorWriter = new LogWriter(`${getPrefix(cfg.error.prefix, now)}_${timeToString(now)}${cfg.error.suffix}`, cfg.error.directory)
+  const logWriter = new LogWriter(`${getPrefix(cfg.info.prefix, now)}_${timeToString(now)}${cfg.info.suffix}`, cfg.info.directory)
 
   const logger = createFileLogger(cfg.log, errorWriter.write, logWriter.write)
 
-  const dir = cfg.file.path
-  const filename = getPrefix(cfg.file.prefix, now) + "_" + timeToString(now) + ".csv"
-  const writeStream = createWriteStream(dir, filename)
-  const writer = new FileWriter(writeStream)
   const connection = await oracledb.getConnection(cfg.db)
-  console.log("Connected to Oracle")
-
+  logger.info("Connected to Oracle")
   const formatter = new CSVFormatter<User>(userModel, ",")
   const queryBuilder = new QueryBuilder()
+
+  const dir = cfg.file.path
+  const filename = `${getPrefix(cfg.file.prefix, now)}_${timeToString(now)}.csv`
+  const writeStream = createWriteStream(dir, filename)
+  const writer = new FileWriter(writeStream)
 
   try {
     logger.info(`Start to export "${path.join(dir, filename)}" file`)
@@ -47,11 +49,7 @@ async function exportData() {
   } catch (err) {
     logger.error(`Error when export "${path.join(dir, filename)}" file. Details: ${toString(err)}`)
   } finally {
-    // await connection.close()
-
-    errorWriter.flush()
     errorWriter.end()
-    logWriter.flush()
     logWriter.end()
   }
 }
