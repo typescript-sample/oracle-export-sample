@@ -29,7 +29,6 @@ async function exportData() {
   const logger = createFileLogger(cfg.log, errorWriter.write, logWriter.write)
 
   const connection = await oracledb.getConnection(cfg.db)
-  logger.info("Connected to Oracle")
   const formatter = new CSVFormatter<User>(userModel, ",")
   const queryBuilder = new QueryBuilder()
 
